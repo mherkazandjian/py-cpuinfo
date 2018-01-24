@@ -101,7 +101,6 @@ if __name__ == '__main__':
 		TestCPUID,
 		TestActual
 	]
-	tests = [TestLinuxFedora_5_s390x]
 
 	# Add the tests to the suite
 	suite = unittest.TestSuite()
