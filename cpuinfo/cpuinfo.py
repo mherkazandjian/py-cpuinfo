@@ -51,13 +51,21 @@ def trace_info(msg):
 	if not logger: return
 
 	from inspect import stack
-	logger.info("{0} {1}".format(msg, stack()[1][1:3]))
+	frame = stack()[1]
+	file = frame[1]
+	line = frame[2]
+	logger.info("File \"{0}\", line {1}, {2}".format(file, line, msg))
 
 def trace_exception(err):
 	if not logger: return
 
 	logger.exception(err)
 
+def trace_write(msg):
+	if not logger: return
+
+	print(msg)
+	sys.stdout.flush()
 
 class DataSource(object):
 	bits = platform.architecture()[0]
@@ -1430,8 +1438,6 @@ def _get_cpu_info_from_proc_cpuinfo():
 			trace_info('\tFailed to find /proc/cpuinfo. Skipping ...')
 			return {}
 
-		raise Exception("AHHHHHHHHHHHH")
-
 		returncode, output = DataSource.cat_proc_cpuinfo()
 		if returncode != 0:
 			trace_info('\tFailed to run cat /proc/cpuinfo. Skipping ...')
@@ -2351,7 +2357,7 @@ def _get_cpu_info_internal():
 	Returns {} if nothing is found.
 	'''
 
-	trace_info('!' * 80)
+	trace_write('!' * 80)
 
 	# Get the CPU arch and bits
 	arch, bits = _parse_arch(DataSource.arch_string_raw)
@@ -2409,7 +2415,7 @@ def _get_cpu_info_internal():
 	# Try platform.uname
 	_copy_new_fields(info, _get_cpu_info_from_platform_uname())
 
-	trace_info('!' * 80)
+	trace_write('!' * 80)
 
 	return info
 
