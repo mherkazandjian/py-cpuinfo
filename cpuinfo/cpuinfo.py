@@ -2472,7 +2472,7 @@ def main():
 	parser = ArgumentParser(description='Gets CPU info with pure Python 2 & 3')
 	parser.add_argument('--json', action='store_true', help='Return the info in JSON format')
 	parser.add_argument('--version', action='store_true', help='Return the version of py-cpuinfo')
-	parser.add_argument('--trace', action='store_true', help='Print detailed output while it finds CPU info')
+	parser.add_argument('--trace', action='store_true', help='Traces code paths used to find CPU info')
 	args = parser.parse_args()
 
 	global IS_TRACED
