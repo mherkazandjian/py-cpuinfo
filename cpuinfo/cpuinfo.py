@@ -43,8 +43,11 @@ except ImportError as err:
 
 IS_PY2 = sys.version_info[0] == 2
 CAN_CALL_CPUID_IN_SUBPROCESS = True
+IS_TRACED = False
 
 def tracer(msg):
+	if not IS_TRACED: return
+
 	from inspect import stack
 	print("{0} {1}".format(msg, stack()[1][1:3]))
 
@@ -2471,6 +2474,9 @@ def main():
 	parser.add_argument('--version', action='store_true', help='Return the version of py-cpuinfo')
 	parser.add_argument('--trace', action='store_true', help='Print detailed output while it finds CPU info')
 	args = parser.parse_args()
+
+	global IS_TRACED
+	IS_TRACED = args.trace
 
 	try:
 		_check_arch()
