@@ -44,6 +44,9 @@ except ImportError as err:
 IS_PY2 = sys.version_info[0] == 2
 CAN_CALL_CPUID_IN_SUBPROCESS = True
 
+def tracer(msg):
+	from inspect import stack
+	print("{0} {1}".format(msg, stack()[1][1:3]))
 
 class DataSource(object):
 	bits = platform.architecture()[0]
@@ -600,7 +603,9 @@ def _parse_dmesg_output(output):
 			info['hz_actual'] = _hz_short_to_full(hz_actual, scale)
 
 		return {k: v for k, v in info.items() if v}
-	except:
+	except Exception as err:
+		tracer('\tRaised exception:')
+		tracer('\t\t' + str(err))
 		#raise
 		pass
 
@@ -1353,10 +1358,14 @@ def _get_cpu_info_from_cpuid():
 	Returns {} on non X86 cpus.
 	Returns {} if SELinux is in enforcing mode.
 	'''
+
+	tracer('Tying to get info from CPUID ...')
+
 	from multiprocessing import Process, Queue
 
 	# Return {} if can't cpuid
 	if not DataSource.can_cpuid:
+		tracer('\tCan\'t CPUID. Skipping ...')
 		return {}
 
 	# Get the CPU arch and bits
@@ -1364,6 +1373,7 @@ def _get_cpu_info_from_cpuid():
 
 	# Return {} if this is not an X86 CPU
 	if not arch in ['X86_32', 'X86_64']:
+		tracer('\tNot running on X86_32 or X86_64. Skipping ...')
 		return {}
 
 	try:
@@ -1384,10 +1394,14 @@ def _get_cpu_info_from_cpuid():
 			# Return the result, only if there is something to read
 			if not queue.empty():
 				output = queue.get()
+				tracer('\tSuccess ...')
 				return _b64_to_obj(output)
 		else:
+			tracer('\tSuccess ...')
 			return _get_cpu_info_from_cpuid_actual()
-	except:
+	except Exception as err:
+		tracer('\tRaised exception:')
+		tracer('\t\t' + str(err))
 		pass
 
 	# Return {} if everything failed
@@ -1398,13 +1412,18 @@ def _get_cpu_info_from_proc_cpuinfo():
 	Returns the CPU info gathered from /proc/cpuinfo.
 	Returns {} if /proc/cpuinfo is not found.
 	'''
+
+	tracer('Tying to get info from /proc/cpuinfo ...')
+
 	try:
 		# Just return {} if there is no cpuinfo
 		if not DataSource.has_proc_cpuinfo():
+			tracer('\tFailed to find /proc/cpuinfo. Skipping ...')
 			return {}
 
 		returncode, output = DataSource.cat_proc_cpuinfo()
 		if returncode != 0:
+			tracer('\tFailed to run cat /proc/cpuinfo. Skipping ...')
 			return {}
 
 		# Various fields
@@ -1476,8 +1495,11 @@ def _get_cpu_info_from_proc_cpuinfo():
 			info['hz_actual'] = _hz_short_to_full(hz_actual, 6)
 
 		info = {k: v for k, v in info.items() if v}
+		tracer('\tSuccess ...')
 		return info
-	except:
+	except Exception as err:
+		tracer('\tRaised exception:')
+		tracer('\t\t' + str(err))
 		#raise # NOTE: To have this throw on error, uncomment this line
 		return {}
 
@@ -1486,14 +1508,19 @@ def _get_cpu_info_from_cpufreq_info():
 	Returns the CPU info gathered from cpufreq-info.
 	Returns {} if cpufreq-info is not found.
 	'''
+
+	tracer('Tying to get info from cpufreq-info ...')
+
 	try:
 		hz_brand, scale = '0.0', 0
 
 		if not DataSource.has_cpufreq_info():
+			tracer('\tFailed to find cpufreq-info. Skipping ...')
 			return {}
 
 		returncode, output = DataSource.cpufreq_info()
 		if returncode != 0:
+			tracer('\tFailed to run cpufreq-info. Skipping ...')
 			return {}
 
 		hz_brand = output.split('current CPU frequency is')[1].split('\n')[0]
@@ -1516,8 +1543,11 @@ def _get_cpu_info_from_cpufreq_info():
 		}
 
 		info = {k: v for k, v in info.items() if v}
+		tracer('\tSuccess ...')
 		return info
-	except:
+	except Exception as err:
+		tracer('\tRaised exception:')
+		tracer('\t\t' + str(err))
 		#raise # NOTE: To have this throw on error, uncomment this line
 		return {}
 
@@ -1526,12 +1556,17 @@ def _get_cpu_info_from_lscpu():
 	Returns the CPU info gathered from lscpu.
 	Returns {} if lscpu is not found.
 	'''
+
+	tracer('Tying to get info from lscpu ...')
+
 	try:
 		if not DataSource.has_lscpu():
+			tracer('\tFailed to find lscpu. Skipping ...')
 			return {}
 
 		returncode, output = DataSource.lscpu()
 		if returncode != 0:
+			tracer('\tFailed to run lscpu. Skipping ...')
 			return {}
 
 		info = {}
@@ -1598,8 +1633,11 @@ def _get_cpu_info_from_lscpu():
 			info['flags'] = flags
 
 		info = {k: v for k, v in info.items() if v}
+		tracer('\tSuccess ...')
 		return info
-	except:
+	except Exception as err:
+		tracer('\tRaised exception:')
+		tracer('\t\t' + str(err))
 		#raise # NOTE: To have this throw on error, uncomment this line
 		return {}
 
@@ -1609,21 +1647,28 @@ def _get_cpu_info_from_dmesg():
 	Returns {} if dmesg is not found or does not have the desired info.
 	'''
 
+	tracer('Tying to get info from the dmesg ...')
+
 	# Just return {} if this arch has an unreliable dmesg log
 	arch, bits = _parse_arch(DataSource.arch_string_raw)
 	if arch in ['S390X']:
+		tracer('\tRunning on S390X. Skipping ...')
 		return {}
 
 	# Just return {} if there is no dmesg
 	if not DataSource.has_dmesg():
+		tracer('\tFailed to find dmesg. Skipping ...')
 		return {}
 
 	# If dmesg fails return {}
 	returncode, output = DataSource.dmesg_a()
 	if output == None or returncode != 0:
+		tracer('\tFailed to run \"dmesg -a\". Skipping ...')
 		return {}
 
-	return _parse_dmesg_output(output)
+	info = _parse_dmesg_output(output)
+	tracer('\tSuccess ...')
+	return info
 
 
 # https://openpowerfoundation.org/wp-content/uploads/2016/05/LoPAPR_DRAFT_v11_24March2016_cmt1.pdf
@@ -1633,14 +1678,19 @@ def _get_cpu_info_from_ibm_pa_features():
 	Returns the CPU info gathered from lsprop /proc/device-tree/cpus/*/ibm,pa-features
 	Returns {} if lsprop is not found or ibm,pa-features does not have the desired info.
 	'''
+
+	tracer('Tying to get info from lsprop ...')
+
 	try:
 		# Just return {} if there is no lsprop
 		if not DataSource.has_ibm_pa_features():
+			tracer('\tFailed to find lsprop. Skipping ...')
 			return {}
 
 		# If ibm,pa-features fails return {}
 		returncode, output = DataSource.ibm_pa_features()
 		if output == None or returncode != 0:
+			tracer('\tFailed to glob /proc/device-tree/cpus/*/ibm,pa-features. Skipping ...')
 			return {}
 
 		# Filter out invalid characters from output
@@ -1743,9 +1793,11 @@ def _get_cpu_info_from_ibm_pa_features():
 			'flags' : flags
 		}
 		info = {k: v for k, v in info.items() if v}
-
+		tracer('\tSuccess ...')
 		return info
-	except:
+	except Exception as err:
+		tracer('\tRaised exception:')
+		tracer('\t\t' + str(err))
 		return {}
 
 
@@ -1754,16 +1806,23 @@ def _get_cpu_info_from_cat_var_run_dmesg_boot():
 	Returns the CPU info gathered from /var/run/dmesg.boot.
 	Returns {} if dmesg is not found or does not have the desired info.
 	'''
+
+	tracer('Tying to get info from the /var/run/dmesg.boot log ...')
+
 	# Just return {} if there is no /var/run/dmesg.boot
 	if not DataSource.has_var_run_dmesg_boot():
+		tracer('\tFailed to find /var/run/dmesg.boot file. Skipping ...')
 		return {}
 
 	# If dmesg.boot fails return {}
 	returncode, output = DataSource.cat_var_run_dmesg_boot()
 	if output == None or returncode != 0:
+		tracer('\tFailed to run \"cat /var/run/dmesg.boot\". Skipping ...')
 		return {}
 
-	return _parse_dmesg_output(output)
+	info = _parse_dmesg_output(output)
+	tracer('\tSuccess ...')
+	return info
 
 
 def _get_cpu_info_from_sysctl():
@@ -1771,14 +1830,19 @@ def _get_cpu_info_from_sysctl():
 	Returns the CPU info gathered from sysctl.
 	Returns {} if sysctl is not found.
 	'''
+
+	tracer('Tying to get info from sysctl ...')
+
 	try:
 		# Just return {} if there is no sysctl
 		if not DataSource.has_sysctl():
+			tracer('\tsysctl not found. Skipping ...')
 			return {}
 
 		# If sysctl fails return {}
 		returncode, output = DataSource.sysctl_machdep_cpu_hw_cpufrequency()
 		if output == None or returncode != 0:
+			tracer('\tFailed to run \"sysctl machdep.cpu hw.cpufrequency\". Skipping ...')
 			return {}
 
 		# Various fields
@@ -1818,8 +1882,11 @@ def _get_cpu_info_from_sysctl():
 		}
 
 		info = {k: v for k, v in info.items() if v}
+		tracer('\tSuccess ...')
 		return info
-	except:
+	except Exception as err:
+		tracer('\tRaised exception:')
+		tracer('\t\t' + str(err))
 		return {}
 
 
@@ -1828,6 +1895,7 @@ def _get_cpu_info_from_sysinfo():
 	Returns the CPU info gathered from sysinfo.
 	Returns {} if sysinfo is not found.
 	'''
+
 	info = _get_cpu_info_from_sysinfo_v1()
 	info.update(_get_cpu_info_from_sysinfo_v2())
 	return info
@@ -1837,14 +1905,19 @@ def _get_cpu_info_from_sysinfo_v1():
 	Returns the CPU info gathered from sysinfo.
 	Returns {} if sysinfo is not found.
 	'''
+
+	tracer('Tying to get info from sysinfo version 1 ...')
+
 	try:
 		# Just return {} if there is no sysinfo
 		if not DataSource.has_sysinfo():
+			tracer('\tFailed to find sysinfo. Skipping ...')
 			return {}
 
 		# If sysinfo fails return {}
 		returncode, output = DataSource.sysinfo_cpu()
 		if output == None or returncode != 0:
+			tracer('\tFailed to run \"sysinfo -cpu\". Skipping ...')
 			return {}
 
 		# Various fields
@@ -1885,8 +1958,11 @@ def _get_cpu_info_from_sysinfo_v1():
 		}
 
 		info = {k: v for k, v in info.items() if v}
+		tracer('\tSuccess ...')
 		return info
-	except:
+	except Exception as err:
+		tracer('\tRaised exception:')
+		tracer('\t\t' + str(err))
 		#raise # NOTE: To have this throw on error, uncomment this line
 		return {}
 
@@ -1895,14 +1971,19 @@ def _get_cpu_info_from_sysinfo_v2():
 	Returns the CPU info gathered from sysinfo.
 	Returns {} if sysinfo is not found.
 	'''
+
+	tracer('Tying to get info from sysinfo version 2 ...')
+
 	try:
 		# Just return {} if there is no sysinfo
 		if not DataSource.has_sysinfo():
+			tracer('\tFailed to find sysinfo. Skipping ...')
 			return {}
 
 		# If sysinfo fails return {}
 		returncode, output = DataSource.sysinfo_cpu()
 		if output == None or returncode != 0:
+			tracer('\tFailed to run \"sysinfo -cpu\". Skipping ...')
 			return {}
 
 		# Various fields
@@ -1960,8 +2041,11 @@ def _get_cpu_info_from_sysinfo_v2():
 		}
 
 		info = {k: v for k, v in info.items() if v}
+		tracer('\tSuccess ...')
 		return info
-	except:
+	except Exception as err:
+		tracer('\tRaised exception:')
+		tracer('\t\t' + str(err))
 		#raise # NOTE: To have this throw on error, uncomment this line
 		return {}
 
@@ -1970,14 +2054,17 @@ def _get_cpu_info_from_wmic():
 	Returns the CPU info gathered from WMI.
 	Returns {} if not on Windows, or wmic is not installed.
 	'''
+	tracer('Tying to get info from wmic ...')
 
 	try:
 		# Just return {} if not Windows or there is no wmic
 		if not DataSource.is_windows or not DataSource.has_wmic():
+			tracer('\tFailed to find WMIC, or not on Windows. Skipping ...')
 			return {}
 
 		returncode, output = DataSource.wmic_cpu()
 		if output == None or returncode != 0:
+			tracer('\tFailed to run wmic. Skipping ...')
 			return {}
 
 		# Break the list into key values pairs
@@ -2039,8 +2126,11 @@ def _get_cpu_info_from_wmic():
 		}
 
 		info = {k: v for k, v in info.items() if v}
+		tracer('\tSuccess ...')
 		return info
-	except:
+	except Exception as err:
+		tracer('\tRaised exception:')
+		tracer('\t\t' + str(err))
 		#raise # NOTE: To have this throw on error, uncomment this line
 		return {}
 
@@ -2050,9 +2140,13 @@ def _get_cpu_info_from_registry():
 	Returns the CPU info gathered from the Windows Registry.
 	Returns {} if not on Windows.
 	'''
+
+	tracer('Tying to get info from Windows registry ...')
+
 	try:
 		# Just return {} if not on Windows
 		if not DataSource.is_windows:
+			tracer('\tNot running on Windows. Skipping ...')
 			return {}
 
 		# Get the CPU name
@@ -2140,8 +2234,11 @@ def _get_cpu_info_from_registry():
 		}
 
 		info = {k: v for k, v in info.items() if v}
+		tracer('\tSuccess ...')
 		return info
-	except:
+	except Exception as err:
+		tracer('\tRaised exception:')
+		tracer('\t\t' + str(err))
 		return {}
 
 def _get_cpu_info_from_kstat():
@@ -2149,19 +2246,25 @@ def _get_cpu_info_from_kstat():
 	Returns the CPU info gathered from isainfo and kstat.
 	Returns {} if isainfo or kstat are not found.
 	'''
+
+	tracer('Tying to get info from kstat ...')
+
 	try:
 		# Just return {} if there is no isainfo or kstat
 		if not DataSource.has_isainfo() or not DataSource.has_kstat():
+			tracer('\tFailed to find isinfo or kstat. Skipping ...')
 			return {}
 
 		# If isainfo fails return {}
 		returncode, flag_output = DataSource.isainfo_vb()
 		if flag_output == None or returncode != 0:
+			tracer('\tFailed to run \"isainfo -vb\". Skipping ...')
 			return {}
 
 		# If kstat fails return {}
 		returncode, kstat = DataSource.kstat_m_cpu_info()
 		if kstat == None or returncode != 0:
+			tracer('\tFailed to run \"kstat -m cpu_info\". Skipping ...')
 			return {}
 
 		# Various fields
@@ -2200,11 +2303,17 @@ def _get_cpu_info_from_kstat():
 		}
 
 		info = {k: v for k, v in info.items() if v}
+		tracer('\tSuccess ...')
 		return info
-	except:
+	except Exception as err:
+		tracer('\tRaised exception:')
+		tracer('\t\t' + str(err))
 		return {}
 
 def _get_cpu_info_from_platform_uname():
+
+	tracer('Tying to get info from platform.uname ...')
+
 	try:
 		uname = DataSource.uname_string_raw.split(',')[0]
 
@@ -2229,8 +2338,11 @@ def _get_cpu_info_from_platform_uname():
 			'stepping' : stepping
 		}
 		info = {k: v for k, v in info.items() if v}
+		tracer('\tSuccess ...')
 		return info
-	except:
+	except Exception as err:
+		tracer('\tRaised exception:')
+		tracer('\t\t' + str(err))
 		return {}
 
 def _get_cpu_info_internal():
@@ -2238,6 +2350,8 @@ def _get_cpu_info_internal():
 	Returns the CPU info by using the best sources of information for your OS.
 	Returns {} if nothing is found.
 	'''
+
+	tracer('!' * 80)
 
 	# Get the CPU arch and bits
 	arch, bits = _parse_arch(DataSource.arch_string_raw)
@@ -2294,6 +2408,8 @@ def _get_cpu_info_internal():
 
 	# Try platform.uname
 	_copy_new_fields(info, _get_cpu_info_from_platform_uname())
+
+	tracer('!' * 80)
 
 	return info
 
@@ -2353,6 +2469,7 @@ def main():
 	parser = ArgumentParser(description='Gets CPU info with pure Python 2 & 3')
 	parser.add_argument('--json', action='store_true', help='Return the info in JSON format')
 	parser.add_argument('--version', action='store_true', help='Return the version of py-cpuinfo')
+	parser.add_argument('--trace', action='store_true', help='Print detailed output while it finds CPU info')
 	args = parser.parse_args()
 
 	try:
