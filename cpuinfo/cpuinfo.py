@@ -682,11 +682,13 @@ def _is_bit_set(reg, bit):
 def _is_selinux_enforcing():
 	# Just return if the SE Linux Status Tool is not installed
 	if not DataSource.has_sestatus():
+		trace_info('\tFailed to find sestatus.')
 		return False
 
 	# Run the sestatus, and just return if it failed to run
 	returncode, output = DataSource.sestatus_b()
 	if returncode != 0:
+		trace_info('\tFailed to run sestatus. Skipping ...')
 		return False
 
 	# Figure out if explicitly in enforcing mode
@@ -1407,6 +1409,7 @@ def _get_cpu_info_from_cpuid():
 
 			# Return {} if it failed
 			if p.exitcode != 0:
+				trace_info('\tFailed to run CPUID in process. Skipping ...')
 				return {}
 
 			# Return the result, only if there is something to read
