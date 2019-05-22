@@ -710,6 +710,9 @@ def _is_selinux_enforcing():
 		elif line.startswith("allow_execmem") and line.endswith("on"):
 			can_selinux_exec_memory = True
 
+	trace_info('\tcan_selinux_exec_heap: {0}'.format(can_selinux_exec_heap))
+	trace_info('\tcan_selinux_exec_memory: {0}'.format(can_selinux_exec_memory))
+
 	return (not can_selinux_exec_heap or not can_selinux_exec_memory)
 
 
@@ -1317,11 +1320,13 @@ def _get_cpu_info_from_cpuid_actual():
 
 	# Return none if this is not an X86 CPU
 	if not arch in ['X86_32', 'X86_64']:
+		trace_info('\tNot running on X86_32 or X86_64. Skipping ...')
 		return {}
 
 	# Return none if SE Linux is in enforcing mode
 	cpuid = CPUID()
 	if cpuid.is_selinux_enforcing:
+		trace_info('\tSELinux is enforcing. Skipping ...')
 		return {}
 
 	# Get the cpu info from the CPUID register
@@ -1365,8 +1370,9 @@ def _get_cpu_info_from_cpuid_actual():
 
 def _get_cpu_info_from_cpuid_subprocess_wrapper(queue):
 	# Pipe all output to nothing
-	sys.stdout = open(os.devnull, 'w')
-	sys.stderr = open(os.devnull, 'w')
+	if not logger:
+		sys.stdout = open(os.devnull, 'w')
+		sys.stderr = open(os.devnull, 'w')
 
 	info = _get_cpu_info_from_cpuid_actual()
 
