@@ -46,6 +46,21 @@ class TestCLI(unittest.TestCase):
 
 		self.assertEqual(cpuinfo.CPUINFO_VERSION_STRING, output)
 
+	def test_trace(self):
+		from subprocess import Popen, PIPE
+
+		command = [sys.executable, 'cpuinfo/cpuinfo.py', '--trace']
+		p1 = Popen(command, stdout=PIPE, stderr=PIPE, stdin=PIPE)
+		output = p1.communicate()[0]
+
+		self.assertEqual(0, p1.returncode)
+
+		if not IS_PY2:
+			output = output.decode(encoding='UTF-8')
+		output = output.strip()
+
+		self.assertTrue('!' * 80 in output)
+
 	def test_default(self):
 		from subprocess import Popen, PIPE
 
