@@ -231,20 +231,31 @@ def _program_paths(program_name):
 def _run_and_get_stdout(command, pipe_command=None):
 	from subprocess import Popen, PIPE
 
+	p1, p2, stdout_output, stderr_output = None, None, None, None
+
+	# Run the command normally
 	if not pipe_command:
 		p1 = Popen(command, stdout=PIPE, stderr=PIPE, stdin=PIPE)
-		output = p1.communicate()[0]
-		if not IS_PY2:
-			output = output.decode(encoding='UTF-8')
-		return p1.returncode, output
+	# Run the command and pipe it into another command
 	else:
-		p1 = Popen(command, stdout=PIPE, stderr=PIPE, stdin=PIPE)
-		p2 = Popen(pipe_command, stdin=p1.stdout, stdout=PIPE, stderr=PIPE)
-		p1.stdout.close()
-		output = p2.communicate()[0]
-		if not IS_PY2:
-			output = output.decode(encoding='UTF-8')
-		return p2.returncode, output
+		p2 = Popen(command, stdout=PIPE, stderr=PIPE, stdin=PIPE)
+		p1 = Popen(pipe_command, stdin=p2.stdout, stdout=PIPE, stderr=PIPE)
+		p2.stdout.close()
+
+	# Get the stdout and stderr
+	stdout_output, stderr_output = p1.communicate()
+	if not IS_PY2:
+		stdout_output = stdout_output.decode(encoding='UTF-8')
+		stderr_output = stderr_output.decode(encoding='UTF-8')
+
+	# Send the result to the logger if needed
+	if logger:
+		trace_info('Running command "' + ' '.join(command) + '" ...')
+		trace_write(stdout_output)
+		trace_write(stderr_output)
+
+	# Return the return code and stdout
+	return p1.returncode, stdout_output
 
 # Make sure we are running on a supported system
 def _check_arch():
